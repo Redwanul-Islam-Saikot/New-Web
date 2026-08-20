@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import fs from 'fs';
 import path from 'path';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const dataFilePath = path.join(process.cwd(), 'data', 'categories.json');
 
@@ -10,6 +12,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
 };
 
 function getStoredData() {
@@ -36,21 +39,24 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-// ✏️ PATCH (নির্দিষ্ট কার্ড এডিট করা)
+// ✏️ [PATCH] Update Single Card
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id } = await context.params;
     const body = await req.json();
     const currentData = getStoredData();
 
-    const index = currentData.cards.findIndex((c: any) => c.id === id);
+    const index = currentData.cards.findIndex((c: any) => String(c.id) === String(id));
 
     if (index !== -1) {
       currentData.cards[index] = { ...currentData.cards[index], ...body };
       saveStoredData(currentData);
+
+      revalidatePath('/', 'layout');
+      revalidatePath('/api/categories');
 
       return NextResponse.json({
         success: true,
@@ -66,17 +72,20 @@ export async function PATCH(
   }
 }
 
-// 🗑️ DELETE (নির্দিষ্ট কার্ড মুছে ফেলা)
+// 🗑️ [DELETE] Delete Single Card
 export async function DELETE(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id } = await context.params;
     const currentData = getStoredData();
 
-    currentData.cards = currentData.cards.filter((c: any) => c.id !== id);
+    currentData.cards = currentData.cards.filter((c: any) => String(c.id) !== String(id));
     saveStoredData(currentData);
+
+    revalidatePath('/', 'layout');
+    revalidatePath('/api/categories');
 
     return NextResponse.json({
       success: true,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import fs from 'fs';
 import path from 'path';
 
@@ -15,8 +16,8 @@ const corsHeaders = {
 };
 
 const defaultData = {
-  sectionTitle: "Our Insurance Categories",
-  sectionDescription: "Explore our wide range of insurance services designed to protect what matters most to you.",
+  sectionTitle: "CATEGORIES OF INSURANCE",
+  sectionDescription: "At SIPLC, we exceed customer expectations by being available both physically and virtually on their preferred channels.",
   cards: []
 };
 
@@ -53,7 +54,7 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-// 📖 [GET] Fetch Data
+// 📖 [GET]
 export async function GET() {
   const data = getStoredData();
   return NextResponse.json(data, {
@@ -62,22 +63,19 @@ export async function GET() {
   });
 }
 
-// 💾 [POST] Update Section or Manage Cards
+// 💾 [POST]
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     let currentData = getStoredData();
 
-    // ১. পুরো ডাটা একসাথে সেভ বা আপডেট করা (Full Replace/Update)
-    if (body.sectionTitle !== undefined || body.cards !== undefined) {
+    if (body.cards && Array.isArray(body.cards)) {
       currentData = {
         sectionTitle: body.sectionTitle ?? currentData.sectionTitle,
         sectionDescription: body.sectionDescription ?? currentData.sectionDescription,
-        cards: Array.isArray(body.cards) ? body.cards : (currentData.cards || [])
+        cards: body.cards
       };
-    } 
-    // ২. নতুন সিঙ্গেল কার্ড যোগ করা
-    else if (body.title || body.description || body.iconUrl) {
+    } else if (body.title || body.description || body.iconUrl) {
       if (!Array.isArray(currentData.cards)) {
         currentData.cards = [];
       }
@@ -95,8 +93,11 @@ export async function POST(req: Request) {
 
     saveStoredData(currentData);
 
+    revalidatePath('/', 'layout');
+    revalidatePath('/api/categories');
+
     return NextResponse.json({ 
-      success: true,
+      success: true, 
       message: 'Categories updated successfully!', 
       data: currentData 
     }, { 
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
 
   } catch (error) {
     return NextResponse.json({ 
-      success: false,
+      success: false, 
       error: 'Failed to save category data' 
     }, { 
       status: 500, 
