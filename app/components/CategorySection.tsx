@@ -1,18 +1,32 @@
+import Link from "next/link";
+
 type Category = {
   _id: string;
   name: string;
   cta: string;
   imageUrl: string;
-  slug: string;
 };
 
 // প্রতিবার fresh ডেটা আনবে, cache করবে না
 export const revalidate = 0;
 
+// ডায়নামিক API URL কনফিগারেশন (Client ও Server সাইড উভয়ের জন্য নিরাপদ)
+const getApiUrl = () => {
+  const envUrl = process.env.NEXT_PUBLIC_ADMIN_API_URL || process.env.ADMIN_API_URL || "";
+  return envUrl.replace(/\/$/, "");
+};
+
 async function getCategories(): Promise<Category[]> {
   try {
-    const res = await fetch(`${process.env.ADMIN_API_URL}/api/admin/category`, {
+    const baseUrl = getApiUrl();
+    const endpoint = baseUrl ? `${baseUrl}/api/admin/category` : "/api/admin/category";
+
+    const res = await fetch(endpoint, {
       cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+      },
     });
 
     if (!res.ok) return [];
@@ -46,40 +60,46 @@ export default async function CategoryGrid() {
       </div>
 
       {/* Grid — 1 column on mobile, 4 columns from desktop up */}
-      <div className="mx-auto grid max-w-[1312px] grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+      <div className="mx-auto grid max-w-[1312px] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {categories.map((cat) => (
-          <a
+          <Link
             key={cat._id}
-            href={`/category/${cat.slug}`}
-            className="group relative flex aspect-[320/447] w-full items-end overflow-hidden rounded-xl bg-cover bg-center"
-            style={{ backgroundImage: `url(${cat.imageUrl})` }}
+            href={`/shop?category=${encodeURIComponent(cat.name)}`}
+            className="group relative flex aspect-[320/447] w-full flex-col justify-end overflow-hidden rounded-2xl bg-slate-100"
           >
-            {/* Gradient overlay — matches Figma: transparent 60% -> black 99.95% */}
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/95 [background-position:0_60%]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/5 to-transparent" />
+            {/* Category Background Image */}
+            <img
+              src={cat.imageUrl}
+              alt={cat.name}
+              className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+            />
 
-            {/* Text content */}
-            <div className="relative z-10 flex flex-col items-start gap-2.5 p-6">
-              <h3 className="text-xl font-semibold capitalize leading-[1.27] text-white sm:text-2xl">
+            {/* Dark Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+
+            {/* Text Content & CTA Button UI */}
+            <div className="relative z-10 flex flex-col items-start gap-1 p-5 sm:p-6">
+              <h3 className="text-lg font-bold tracking-wide text-white sm:text-xl">
                 {cat.name}
               </h3>
-              <span className="flex items-center gap-2 text-sm capitalize text-white transition-all duration-200 group-hover:gap-3">
-                {cat.cta}
+
+              <div className="flex items-center gap-1.5 text-xs font-medium tracking-normal text-slate-200 transition-all duration-300 group-hover:gap-2.5 group-hover:text-white">
+                <span>{cat.cta || "Explore Collection"}</span>
                 <svg
-                  className="h-3.5 w-3.5 shrink-0"
+                  className="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover:translate-x-0.5"
                   viewBox="0 0 14 14"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth={1.16667}
+                  strokeWidth={1.5}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
                   <path d="M2 7h10" />
                   <path d="M7.5 3.5 11 7l-3.5 3.5" />
                 </svg>
-              </span>
+              </div>
             </div>
-          </a>
+          </Link>
         ))}
       </div>
     </section>

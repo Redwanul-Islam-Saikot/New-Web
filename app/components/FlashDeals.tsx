@@ -29,6 +29,7 @@ async function getActiveCampaign(): Promise<Campaign | null> {
   try {
     const res = await fetch(`${process.env.ADMIN_API_URL}/api/admin/flash-sale`, {
       cache: "no-store",
+      headers: { "Pragma": "no-cache" }
     });
     if (!res.ok) return null;
 
@@ -50,25 +51,35 @@ async function getActiveCampaign(): Promise<Campaign | null> {
   }
 }
 
-// Featured product গুলো থেকেই Flash Deals-এর কার্ড বানানো হবে —
-// আলাদা কোনো FlashProduct model লাগবে না, existing Product API-ই যথেষ্ট।
 async function getFeaturedProducts(): Promise<Product[]> {
   try {
     const res = await fetch(`${process.env.ADMIN_API_URL}/api/admin/products`, {
       cache: "no-store",
+      headers: { "Pragma": "no-cache" }
     });
     if (!res.ok) return [];
 
     const json = await res.json();
     if (!json.success || !Array.isArray(json.data)) return [];
 
-    return json.data
-      .filter((p: Product) => p.isFeatured)
+    const allProducts = json.data;
+
+    // ১. প্রথমে Featured প্রোডাক্ট ফিল্টার করা
+    let featured = allProducts.filter((p: Product) => p.isFeatured);
+
+    // ২. যদি Featured প্রোডাক্ট ৪টার কম থাকে, তবে নরমাল প্রোডাক্ট দিয়ে পুরন করা
+    if (featured.length < 4) {
+      const nonFeatured = allProducts.filter((p: Product) => !p.isFeatured);
+      featured = [...featured, ...nonFeatured];
+    }
+
+    // ৩. নতুন থেকে পুরাতন সর্টিং করে প্রথম ৪টি রিটার্ন করা
+    return featured
       .sort(
         (a: Product, b: Product) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
-      .slice(0, 4); // Flash Deals-এ সবসময় সর্বোচ্চ ৪টা কার্ড দেখাবে
+      .slice(0, 4);
   } catch (err) {
     console.error("Failed to fetch featured products:", err);
     return [];
@@ -92,20 +103,18 @@ export default async function FlashDeals() {
   const endsAt = campaign?.endTime
     ? new Date(campaign.endTime).toISOString()
     : new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
-  // banner image na thakle default fallback banner
+
   const bannerImage = campaign?.imageUrl || "/flash-deal-banner.jpg";
 
   return (
     <section className="flex flex-col">
-      {/* ===== Top banner (image background + overlay text) ===== */}
+      {/* Top Banner */}
       <div className="relative flex flex-col items-center justify-center gap-3 overflow-hidden px-4 py-14 text-center sm:py-20">
-        {/* background photo */}
         <img
           src={bannerImage}
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
         />
-        {/* dark tint so white text stays readable over any photo */}
         <div className="absolute inset-0 bg-black/45" />
 
         <div className="relative z-10 flex flex-col items-center gap-3 sm:gap-4">
@@ -128,38 +137,65 @@ export default async function FlashDeals() {
         </div>
       </div>
 
-      {/* ===== Product cards (white background) ===== */}
+      {/* Product Cards Grid */}
       {products.length > 0 && (
         <div className="flex flex-col items-center gap-6 bg-white px-4 py-10 sm:gap-8 sm:px-6 sm:py-12 md:px-16">
-          <div className="grid w-full max-w-7xl grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid w-full max-w-7xl grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
             {products.map(function (p) {
               const discountPercent = getDiscountPercent(p.price, p.oldPrice);
 
               return (
                 <article
                   key={p._id}
-                  className="group flex w-full flex-col overflow-hidden rounded-xl bg-white shadow-sm"
+                  className="group flex w-full flex-col overflow-hidden"
                 >
-                  <div className="relative h-[280px] w-full overflow-hidden rounded-t-xl sm:h-[300px] md:h-[380px]">
+                  <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl bg-slate-100">
                     <img
                       src={p.imageUrl}
                       alt={p.name}
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
+
                     {discountPercent > 0 && (
-                      <span className="absolute left-0 top-0 rounded-br-md bg-red-600 px-2 py-1 text-xs font-bold text-white sm:px-3 sm:text-sm">
+                      <span className="absolute left-2 top-2 rounded-md bg-red-600 px-2 py-0.5 text-xs font-bold text-white shadow">
                         -{discountPercent}%
                       </span>
                     )}
+
+                    <button className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-800 shadow-md transition hover:bg-slate-100">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+                        />
+                      </svg>
+                    </button>
+
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <button className="w-full rounded-lg bg-white/95 py-2.5 text-xs font-bold text-slate-900 shadow transition hover:bg-white">
+                        Select Options
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-1 p-2 sm:p-3">
-                    <p className="line-clamp-1 text-xs sm:text-base">{p.name}</p>
-                    <div className="flex flex-wrap items-center gap-1 sm:gap-3">
-                      <span className="text-sm font-semibold sm:text-lg">
+
+                  <div className="flex flex-col gap-1 pt-3">
+                    <h3 className="line-clamp-1 text-xs font-semibold text-slate-800 sm:text-sm">
+                      {p.name}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-extrabold text-slate-900">
                         {formatBDT(p.price)}
                       </span>
                       {p.oldPrice && p.oldPrice > p.price && (
-                        <span className="text-xs text-black/50 line-through sm:text-sm">
+                        <span className="text-xs font-medium text-slate-400 line-through">
                           {formatBDT(p.oldPrice)}
                         </span>
                       )}
