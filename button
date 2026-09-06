@@ -1,0 +1,15 @@
+<fieldset class="radio-group">
+  <legend>Select an Option</legend>
+
+  <label class="radio-label">
+    <input type="radio" name="plan" value="option1" checked />
+    <span class="custom-radio"></span>
+    Option One
+  </label>
+
+  <label class="radio-label">
+    <input type="radio" name="plan" value="option2" />
+    <span class="custom-radio"></span>
+    Option Two
+  </label>
+</fieldset>
